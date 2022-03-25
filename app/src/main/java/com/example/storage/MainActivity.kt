@@ -15,6 +15,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.OutlinedButton
@@ -25,8 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import coil.compose.rememberImagePainter
 import com.example.storage.ui.theme.StorageTheme
 import com.google.firebase.ktx.Firebase
@@ -41,9 +40,6 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
 
     lateinit var firebaseStorage: FirebaseStorage
-
-    private val _responseImage = MutableLiveData(listOf<String>())
-    val responseImage:LiveData<List<String>> = _responseImage
 
     @SuppressLint("CoroutineCreationDuringComposition")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,7 +82,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     OutlinedButton(onClick = {
-                        images.value = listFiles()
+                        listFiles(images)
                     }) {
                         Text(text = "List file")
                     }
@@ -104,7 +100,7 @@ class MainActivity : ComponentActivity() {
                             Image(
                                 painter = rememberImagePainter(data = item),
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.size(200.dp)
                             )
                         }
                     })
@@ -131,19 +127,22 @@ class MainActivity : ComponentActivity() {
         firebaseStorage.reference.child("image/$filename").delete().await()
     }
 
-    private fun listFiles():List<String> {
-        val images = ArrayList<String>()
-        firebaseStorage.reference.child("image/").listAll()
-            .addOnSuccessListener{  imageList ->
-                for (image in imageList.items){
-                    image.downloadUrl
-                        .addOnSuccessListener{
-                            images.add(it.toString())
-                }
-            }
+    private fun listFiles(
+        listString: MutableState<List<String>>
+    ) = CoroutineScope(Dispatchers.IO).launch {
+        val imageUrls = mutableListOf<String>()
+        val images = firebaseStorage.reference.child("image/").listAll().await()
+        for (image in images.items){
+            val url = image.downloadUrl.await()
+            imageUrls.add(url.toString())
+            Log.e("StorageA:", url.toString())
+            Log.e("StorageB:", imageUrls.toString())
         }
-        _responseImage.value = images
-        return images
+        withContext(Dispatchers.Main){
+            Log.e("StorageC:", imageUrls.toString())
+            listString.value = imageUrls
+            Log.e("StorageD:", listString.value.toString())
+        }
     }
 
     @Composable
